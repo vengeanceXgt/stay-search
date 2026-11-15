@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stay Search</title>
+<style>
+  :root {
+    --ink: #10243a; --muted: #55697d; --line: #cfdbe5; --bg: #f3f7fa; --panel: #ffffff;
+    --accent: #0b6e8a; --accent-ink: #ffffff; --warn: #a33a1f; --ok: #1d6b45;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --ink: #e6eef5; --muted: #9db0c1; --line: #2b3f53; --bg: #0c1a28; --panel: #132638; --accent: #4cc0e0; --accent-ink: #062030; --warn: #ff9d7f; --ok: #7fd4a6; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 16px/1.5 "Segoe UI", system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+  header { padding: 28px 20px 8px; max-width: 980px; margin: 0 auto; }
+  h1 { margin: 0; font: 600 28px/1.2 Georgia, "Times New Roman", serif; letter-spacing: .2px; }
+  header p { margin: 4px 0 0; color: var(--muted); }
+  main { max-width: 980px; margin: 0 auto; padding: 12px 20px 60px; }
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; background: var(--panel);
+         border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  label { display: flex; flex-direction: column; font-size: 13px; color: var(--muted); gap: 4px; }
+  input, select { font: inherit; padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 6px; padding: 10px 16px; background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button:focus-visible, input:focus-visible, select:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+  form button { align-self: end; }
+  #meta { margin: 16px 2px 8px; color: var(--muted); font-size: 14px; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  li { display: grid; grid-template-columns: 1fr auto; gap: 8px 16px; align-items: center; background: var(--panel);
+       border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  li h2 { margin: 0; font-size: 17px; }
+  li .sub { color: var(--muted); font-size: 14px; }
+  .price { text-align: right; font-weight: 700; font-size: 18px; }
+  .price small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+  #msg { min-height: 24px; margin-top: 12px; font-weight: 600; }
+  #msg.err { color: var(--warn); } #msg.ok { color: var(--ok); }
+  .pager { display: flex; gap: 8px; margin-top: 16px; align-items: center; }
+  .pager button { background: var(--panel); color: var(--ink); border: 1px solid var(--line); }
+  .pager button:disabled { opacity: .5; cursor: default; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Find a place to stay</h1>
+  <p>Search availability for your dates, then reserve a room.</p>
+</header>
+<main>
+  <form id="f">
+    <label>City <select id="city" required></select></label>
+    <label>Check-in <input id="checkin" type="date" required></label>
+    <label>Check-out <input id="checkout" type="date" required></label>
+    <label>Guests <input id="guests" type="number" min="1" max="10" value="2"></label>
+    <label>Max price / night <input id="max_price" type="number" min="0" placeholder="any"></label>
+    <label>Min rating <input id="min_rating" type="number" min="0" max="5" step="0.1" placeholder="any"></label>
+    <label>Sort <select id="sort"><option value="price_asc">Price, low to high</option><option value="price_desc">Price, high to low</option><option value="rating">Best rated</option></select></label>
+    <button type="submit">Search</button>
+  </form>
+  <div id="msg" role="status" aria-live="polite"></div>
+  <div id="meta"></div>
+  <ul id="results"></ul>
+  <div class="pager"><button id="prev" type="button">Previous</button><span id="pageno"></span><button id="next" type="button">Next</button></div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let page = 1, totalPages = 1;
+const iso = d => d.toISOString().slice(0, 10);
+const today = new Date(); const in14 = new Date(today.getTime() + 14 * 864e5); const in17 = new Date(today.getTime() + 17 * 864e5);
+$('checkin').value = iso(in14); $('checkout').value = iso(in17); $('checkin').min = iso(today);
+
+function say(text, kind) { $('msg').textContent = text; $('msg').className = kind || ''; }
+
+async function loadCities() {
+  const cities = await (await fetch('/api/cities')).json();
+  for (const c of cities) { const o = document.createElement('option'); o.value = o.textContent = c; $('city').appendChild(o); }
+}
+
+function params() {
+  const p = new URLSearchParams({ city: $('city').value, checkin: $('checkin').value, checkout: $('checkout').value,
+    guests: $('guests').value || 1, sort: $('sort').value, page, page_size: 10 });
+  if ($('max_price').value) p.set('max_price', $('max_price').value);
+  if ($('min_rating').value) p.set('min_rating', $('min_rating').value);
+  return p;
+}
+
+async function run() {
+  say('');
+  const r = await fetch('/api/search?' + params());
+  if (!r.ok) { say((await r.json()).detail || 'Search failed', 'err'); return; }
+  const data = await r.json();
+  totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+  $('meta').textContent = `${data.total.toLocaleString()} properties available` + (r.headers.get('X-Cache') === 'HIT' ? ' (cached)' : '');
+  $('pageno').textContent = `Page ${page} of ${totalPages}`;
+  $('prev').disabled = page <= 1; $('next').disabled = page >= totalPages;
+  const ul = $('results'); ul.replaceChildren();
+  for (const p of data.results) {
+    const li = document.createElement('li');
+    const left = document.createElement('div');
+    const h = document.createElement('h2'); h.textContent = p.name;
+    const sub = document.createElement('div'); sub.className = 'sub'; sub.textContent = `${p.city} · rated ${p.rating} · sleeps ${p.max_guests}`;
+    left.append(h, sub);
+    const right = document.createElement('div'); right.className = 'price';
+    right.textContent = `$${p.price_per_night}`;
+    const small = document.createElement('small'); small.textContent = 'per night';
+    const btn = document.createElement('button'); btn.type = 'button'; btn.textContent = 'Reserve'; btn.onclick = () => reserve(p);
+    right.append(small, btn);
+    li.append(left, right); ul.appendChild(li);
+  }
+}
+
+async function reserve(p) {
+  const name = prompt(`Guest name for ${p.name}?`);
+  if (!name) return;
+  const r = await fetch('/api/bookings', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ property_id: p.id, guest_name: name, checkin: $('checkin').value, checkout: $('checkout').value, guests: Number($('guests').value || 1) }) });
+  const body = await r.json();
+  if (r.ok) { say(`Booked! Reference #${body.id}, total $${body.total_price}.`, 'ok'); run(); }
+  else say(body.detail || 'Booking failed', 'err');
+}
+
+$('f').addEventListener('submit', e => { e.preventDefault(); page = 1; run(); });
+$('prev').onclick = () => { page--; run(); };
+$('next').onclick = () => { page++; run(); };
+loadCities().then(run);
+</script>
+</body>
+</html>
