@@ -6,14 +6,14 @@
 [![Tests](https://img.shields.io/badge/Tests-11%20Passed-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)]()
 
-> **Target Role:** Agoda (Full-Stack / Distributed & Scalable Systems / Backend Engineering)  
+> **Domain:** Distributed Systems / High-Throughput Search & Scalable Booking Architecture  
 > **Key Capabilities Demonstrated:** High-volume paginated search over 100,000+ inventory items, race-free atomic per-night bookings, versioned cache invalidation without keyspace scans, token-bucket rate limiting, and an interactive front-end.
 
 ---
 
 ## 📌 Executive Summary
 
-Modern travel platforms like Agoda handle high-volume search traffic alongside strict transactional booking constraints. A customer booking a 5-night stay must reserve each night atomically—if even a single night is sold out, the entire booking must cleanly abort without leaving orphan reservations. Concurrently, millions of search queries must return sub-100ms responses across 100,000+ properties without serving stale availability.
+Large-scale travel and booking platforms handle high-volume search traffic alongside strict transactional booking constraints. A customer booking a 5-night stay must reserve each night atomically—if even a single night is sold out, the entire booking must cleanly abort without leaving orphan reservations. Concurrently, millions of search queries must return sub-100ms responses across 100,000+ properties without serving stale availability.
 
 This project implements a complete, production-grade hotel search and booking backend:
 1. **Per-Night Atomic Inventory Model:** Eliminates race conditions and overbooking using deterministic locking and all-or-nothing transactional updates.
@@ -130,8 +130,8 @@ The booking endpoint is gated by a token-bucket rate limiter (`app/ratelimit.py`
 ### 1. Installation
 Clone the repository and install dependencies:
 ```bash
-git clone https://github.com/vengeanceXgt/agoda-stay-search.git
-cd agoda-stay-search
+git clone https://github.com/vengeanceXgt/stay-search.git
+cd stay-search
 pip install -r requirements.txt
 ```
 
@@ -284,7 +284,7 @@ python loadtest.py --url http://127.0.0.1:8001 --requests 600 --concurrency 32
 ## 📂 Project Structure
 
 ```
-agoda-stay-search/
+stay-search/
 ├── app/
 │   ├── __init__.py
 │   ├── booking.py          # Atomic reservation logic & inventory check
